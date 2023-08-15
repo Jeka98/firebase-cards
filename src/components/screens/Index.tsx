@@ -1,97 +1,193 @@
-import { Dialog } from '@headlessui/react';
-import { useRef, useState } from 'react';
-import { useAuthState } from '~/components/contexts/UserContext';
-import { SignInButton } from '~/components/domain/auth/SignInButton';
-import { SignOutButton } from '~/components/domain/auth/SignOutButton';
+import { collection, getDocs, query, addDoc, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import React, { useEffect, useState } from 'react';
 import { Head } from '~/components/shared/Head';
+import { useFirestore } from '~/lib/firebase';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import Page404 from './404';
+import ToolCard from '../shared/ToolCard';
+
+type Tool = {
+  id: string,
+  title: string,
+  description: string,
+  url: string
+}
+
+export enum InputEnum {
+  Id = 'id',
+  Title = 'title',
+  Description = 'description',
+  Url = 'url',
+}
 
 function Index() {
-  const { state } = useAuthState();
-  const [isOpen, setIsOpen] = useState(true);
-  const completeButtonRef = useRef(null);
+  const [tools, setTools] = useState<Array<Tool>>([]);
+  const firestore = useFirestore();
+  const [inputData, setInputData] = useState<Partial<Tool>>({
+    title: '',
+    description: '',
+    url: ''
+  });
+  const [formError, setFormError] = useState<boolean>(false);
+
+  useEffect(() => {
+    async function fetchData() {
+      const toolsCollection = collection(firestore, 'tools');
+      const toolsQuery = query(toolsCollection);
+      const querySnapshoy = await getDocs(toolsQuery);
+      const fetchedData: Array<Tool> = [];
+      querySnapshoy.forEach((doc) => {
+        fetchedData.push({ id: doc.id, ...doc.data() } as Tool);
+      });
+      setTools(fetchedData);
+    }
+
+    fetchData();
+  }, [tools]);
+
+  const onUpdateTool = (id: string, data: Partial<Tool>) => {
+    const docRef = doc(firestore, "tools", id);
+
+    updateDoc(docRef, data)
+      .then(docRef => {
+        toast.success('Update succesfully!', {
+          position: "top-right",
+          autoClose: 2000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "dark",
+        });
+      })
+      .catch(error => {
+        console.log(error);
+      });
+  }
+
+  const onDeleteTool = (id: string) => {
+    const docRef = doc(firestore, "tools", id);
+
+    deleteDoc(docRef)
+      .then(docRef => {
+        toast.success('Delete succesfully!', {
+          position: "top-right",
+          autoClose: 2000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "dark",
+        });
+      })
+      .catch(error => {
+        console.log(error);
+      });
+  }
+
+  const handleInputChange = (field: InputEnum, value: string) => {
+    setInputData({ ...inputData, [field]: value });
+  }
+
+  const handleFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    try {
+      const toolsCollection = collection(firestore, 'tools');
+      const newTool: Partial<Tool> = {
+        title: inputData.title,
+        description: inputData.description,
+        url: inputData.url
+      }
+
+      const docRef = await addDoc(toolsCollection, newTool);
+
+      toast.success('Saved succesfully!', {
+        position: "top-right",
+        autoClose: 2000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "dark",
+      });
+
+      setTools([...tools, { id: docRef.id, ...newTool }]);
+
+      setInputData({
+        title: '',
+        description: '',
+        url: ''
+      });
+    } catch (error) {
+      setFormError(true);
+    }
+  }
+
+  if (formError) {
+    return <Page404 />
+  }
 
   return (
     <>
       <Head title="TOP PAGE" />
-      <div className="hero min-h-screen">
-        <div className="text-center hero-content">
-          <div>
-            <h1 className="text-3xl font-bold">
-              <a className="link link-primary" target="_blank" href="https://vitejs.dev/" rel="noreferrer">
-                Vite
-              </a>{' '}
-              +{' '}
-              <a className="link link-primary" target="_blank" href="https://reactjs.org/" rel="noreferrer">
-                React
-              </a>{' '}
-              +{' '}
-              <a className="link link-primary" target="_blank" href="https://www.typescriptlang.org/" rel="noreferrer">
-                TypeScript
-              </a>{' '}
-              +{' '}
-              <a className="link link-primary" target="_blank" href="https://tailwindcss.com/" rel="noreferrer">
-                TailwindCSS
-              </a>{' '}
-              Starter
-            </h1>
-            <p className="mt-4 text-lg">
-              For fast <b>prototyping</b>. Already set up{' '}
-              <a
-                className="link link-primary"
-                target="_blank"
-                href="https://github.com/firebase/firebase-js-sdk"
-                rel="noreferrer"
-              >
-                Firebase(v9)
-              </a>
-              ,{' '}
-              <a className="link link-primary" target="_blank" href="https://daisyui.com/" rel="noreferrer">
-                daisyUI
-              </a>
-              ,{' '}
-              <a className="link link-primary" target="_blank" href="https://github.com/eslint/eslint" rel="noreferrer">
-                ESLint
-              </a>
-              ,{' '}
-              <a
-                className="link link-primary"
-                target="_blank"
-                href="https://github.com/prettier/prettier"
-                rel="noreferrer"
-              >
-                Prettier
-              </a>
-              .
-            </p>
-            <div className="mt-4 grid gap-2">
-              {state.state === 'UNKNOWN' ? null : state.state === 'SIGNED_OUT' ? <SignInButton /> : <SignOutButton />}
-              <button onClick={() => setIsOpen(true)}>Display Dialog</button>
-            </div>
-          </div>
-        </div>
-      </div>
-      <Dialog
-        className="flex fixed inset-0 z-10 overflow-y-auto"
-        initialFocus={completeButtonRef}
-        open={isOpen}
-        onClose={() => setIsOpen(false)}
-      >
-        <div className="flex items-center justify-center min-h-screen w-screen">
-          <Dialog.Overlay className="fixed inset-0 bg-black opacity-30" />
-          <div className="relative bg-white rounded max-w-120 p-8 mx-auto">
-            <Dialog.Title>Dialog Title</Dialog.Title>
-            <Dialog.Description>Dialog description</Dialog.Description>
+      <div className="hero min-h-screen bg-slate-800">
+        <div className="max-w-5xl mx-auto">
+
+          <form className="flex" onSubmit={handleFormSubmit}>
+            <input
+              type="text"
+              onChange={(e) => handleInputChange(InputEnum.Title, e.target.value)}
+              value={inputData.title}
+              placeholder="title"
+              className="m-4 text-slate-50 bg-transparent border border-slate-700 focus:ring-slate-400 focus:outline-none p-4 rounded-lg"
+            />
+            <input
+              type="text"
+              onChange={(e) => handleInputChange(InputEnum.Description, e.target.value)}
+              value={inputData.description}
+              placeholder="description"
+              className="m-4 text-slate-50 bg-transparent border border-slate-700 focus:ring-slate-400 focus:outline-none p-4 rounded-lg"
+            />
+            <input
+              type="text"
+              onChange={(e) => handleInputChange(InputEnum.Url, e.target.value)}
+              value={inputData.url}
+              placeholder="url"
+              className="m-4 text-slate-50 bg-transparent border border-slate-700 focus:ring-slate-400 focus:outline-none p-4 rounded-lg"
+            />
             <button
-              ref={completeButtonRef}
-              type="button"
-              className="inline-flex justify-center px-4 py-2 text-sm font-medium text-blue-900 bg-blue-100 border border-transparent rounded-md hover:bg-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500"
-              onClick={() => setIsOpen(false)}
+              type="submit"
+              className="m-4 border border-purple-500 p5 rounded-lg transition-opacity bg-purple-600 bg-opacity-30 hover:bg-opacity-50 p-4 text-slate-50"
             >
-              Got it, thanks!
+              Add
             </button>
-          </div>
+          </form>
+
+          <table className="table w-full bg-transparent text-slate-50">
+            <thead>
+              <tr>
+                <th className="bg-slate-900 border-slate-700">Title</th>
+                <th className="bg-slate-900 border-slate-700">Description</th>
+                <th className="bg-slate-900 border-slate-700">Url</th>
+                <th className="bg-slate-900 border-slate-700">Config</th>
+              </tr>
+            </thead>
+            <tbody>
+              {
+                tools.map((tool) => (
+                  <ToolCard key={tool.id} tool={tool} onUpdate={onUpdateTool} onDelete={onDeleteTool} />
+                ))
+              }
+            </tbody>
+          </table>
         </div>
-      </Dialog>
+      </div >
+      <ToastContainer />
     </>
   );
 }
